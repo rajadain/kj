@@ -1,0 +1,8 @@
+resolver: lts-5.0
+
+extra-deps:
+  - directory-1.2.5.0
+  - process-1.4.2.0
+
+packages:
+- '.'
