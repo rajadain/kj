@@ -3,7 +3,8 @@
 kj allows you to use your `scripts/` folder as if it were part of a task running framework. You can:
 
 * Run scripts from a nested directory without navigating up to project root
-* Provide docstrings in your scripts as comments and view them from the command lineEnjoy the niceties of a modern task runner like grunt or fabric without a separate syntax: the rest of your team is able to run the same scripts the old-fashioned way.
+* Provide docstrings in your scripts as comments and view them from the command line
+* Enjoy the niceties of a modern task runner like grunt or fabric without a separate syntax: the rest of your team is able to run the same scripts the old-fashioned way
 
 ## usage
 
