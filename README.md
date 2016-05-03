@@ -56,6 +56,10 @@ Binaries are provided on the releases page for GNU/Linux. More platforms may lat
 
 ## configuration
 
+### docstrings
+
+The first comment found in your script after a shebang line will be read by kj as quick documentation. Simply run `kj -d` from within a `kj` project to see scripts and their documentation.
+
 ### custom directories
 
 Instead of looking for a `scripts` dir, you can set `kjDir` in a `.kj.json` file at the root level where the scripts folder is, to a folder, without slashes, to look for scripts in.
@@ -89,14 +93,19 @@ cp completions/kj.fish ~/.config/fish/completions/kj.fish
 
 ### name
 
-Kj is chosen to be short and simple to type from the home row. It also also a nod to karaoke jockeys everywhere. You know who you are.
+Kj is chosen to be short and simple to type from the home row. It is also a nod to the [http://en.wikipedia.org/wiki/Karaoke#Karaoke_terms](karaoke jockey).
 
-Kj used to be called `scripty`. This name led to too much difficulty with completion, and users were aliasing scripty to something like `s` as a workaround.
+Kj used to be called `scripty`. This name led to too much difficulty with completion, and users were aliasing scripty to something like `s` as a workaround. Kj removes this burden.
 
 ### motivation
 
 Kj is inspired by the behavior of modern tools like fabric, vagrant, etc.
 These tools allow you to run commands from any subdirectory of a project, which is very
-convenient. I had gotten used to using fabric, and after switching to a folder full of
-scripts for simplicity, I missed this functionality.
+convenient.
+
+I was working on a team that switched from using fabric to regular shell scripts. This turned out to be a good decision for reasons beyond the scope of this document, but I missed the flexibility of fabric. Kj adds some of those features to regular shell scripts.
+
+## supported scripts
+
+Kj current supports python and bash scripts only. Support for other scripts could be added if the userbase requested them, particlarly scripts whose comment prefix syntax is `#`. Otherwise, kj will be kept small.
 
