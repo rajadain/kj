@@ -12,6 +12,8 @@ import Parse
 
 data KjOptions = KjOptions { optListOnly :: Bool, optDetailOnly :: Bool }
 
+type RunMode = KjOptions -> [String] -> IO ()
+
 instance Options KjOptions where
     defineOptions =
       pure KjOptions
@@ -25,49 +27,34 @@ instance Options KjOptions where
                          optionDefault = False })
             t = "Print all available scripts (%s)"
 
-firstArgIsScript :: [String] -> Bool
-firstArgIsScript args =
-  case args of [] -> False
-               x:_ -> head x /= '-'
-
--- parse arguments, determine runmode, call runmode
 main :: IO ()
-main = do
-  argv <- getArgs
-  if firstArgIsScript argv
-    then scriptMode argv
-    else runCommand $ \opts args -> do
-    let detailOnly = optDetailOnly opts
-        listOnly = optListOnly opts
-        hasScriptArgs = not (null args)
-        modes = filter (==True) [detailOnly, listOnly, hasScriptArgs]
-        hasConflictingParams = 1 /= length modes
-    if hasConflictingParams
-      then putStrLn (parsedHelp (parseOptions argv::ParsedOptions KjOptions))
-      else if detailOnly
-           then detailOnlyMode
-           else listOnlyMode
+main = runCommand $ \opts args ->
+  let mode = if (optDetailOnly opts)
+             then detailOnlyMode
+             else if (optListOnly opts)
+                  then listOnlyMode
+                  else scriptMode
+  in mode opts args
 
--- prints all available scripts
-listOnlyMode :: IO ()
-listOnlyMode = getFiles >>= mapM_ (putStrLn . showShort)
+listOnlyMode :: RunMode
+listOnlyMode _ _ = getFiles >>= mapM_ (putStrLn . showShort)
 
--- prints all available scripts with their summaries
-detailOnlyMode :: IO ()
-detailOnlyMode = do
+detailOnlyMode :: RunMode
+detailOnlyMode _ _ = do
   files <- getFiles
   texts <- mapM (readFile . showLong) files
   let parsed = zipWith parseScript (map fileName files) texts
   mapM_ print (catMaybes parsed)
 
--- the main runmode, executes a script
-scriptMode :: [String] -> IO ()
-scriptMode outerArgs = do
-  let (filename:args) = outerArgs
-  files <- getFiles
-  let needle = fromString filename
-  let matches = fmap (take 1 . mapCompareExpand files) needle
-  case matches of Nothing -> return ()
-                  (Just []) -> putStrLn "not found"
-                  (Just l) -> mapM_ (\sr -> callProcess (showLong sr) args) l
-  
+scriptMode :: RunMode
+scriptMode opts args =
+  case args of [] -> putStrLn generalHelp
+               (filename:scriptArgs) -> do
+                 files <- getFiles
+                 let needle = fromString filename
+                 let matches = fmap (take 1 . mapCompareExpand files) needle
+                 case matches of Nothing -> return ()
+                                 (Just []) -> putStrLn "not found"
+                                 (Just l) -> run (head l) scriptArgs
+  where run s a = callProcess (showLong s) a
+        generalHelp = parsedHelp (parseOptions args::ParsedOptions KjOptions)
