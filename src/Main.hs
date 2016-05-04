@@ -10,20 +10,23 @@ import Text.Printf
 import Dir
 import Parse
 
-data KjOptions = KjOptions { optListOnly :: Bool, optDetailOnly :: Bool }
+data KjOptions = KjOptions { optListOnly :: Bool,
+                             optDetailOnly :: Bool,
+                             optAutoRestart :: Bool }
 
 type RunMode = KjOptions -> [String] -> IO ()
 
 instance Options KjOptions where
     defineOptions =
       pure KjOptions
-      <*> mkViewOpt "list" "in machine readable format"
-      <*> mkViewOpt "detail" "with docstring if available"
+      <*> mkViewOpt "list" (printf t "in machine readable format")
+      <*> mkViewOpt "detail" (printf t "with docstring if available")
+      <*> mkViewOpt "auto-restart" "automatically restart script when it terminates"
       where mkViewOpt long desc =
               defineOption optionType_bool
               (\o -> o { optionLongFlags = [long],
                          optionShortFlags = [head long],
-                         optionDescription = printf t desc,
+                         optionDescription = desc,
                          optionDefault = False })
             t = "Print all available scripts (%s)"
 
@@ -56,5 +59,6 @@ scriptMode opts args =
                  case matches of Nothing -> return ()
                                  (Just []) -> putStrLn "not found"
                                  (Just l) -> run (head l) scriptArgs
-  where run s a = callProcess (showLong s) a
+  where run s a = repeater $ callProcess (showLong s) a
+        repeater = if (optAutoRestart opts) then (sequence_ . repeat) else id
         generalHelp = parsedHelp (parseOptions args::ParsedOptions KjOptions)
