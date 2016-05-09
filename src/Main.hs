@@ -9,6 +9,7 @@ import Text.Printf
 
 import Dir
 import Parse
+import System.Exit
 
 data KjOptions = KjOptions { optListOnly :: Bool,
                              optDetailOnly :: Bool,
@@ -51,14 +52,24 @@ detailOnlyMode _ _ = do
 
 scriptMode :: RunMode
 scriptMode opts args =
-  case args of [] -> putStrLn generalHelp
-               (filename:scriptArgs) -> do
-                 files <- getFiles
-                 let needle = fromString filename
-                 let matches = fmap (take 1 . mapCompareExpand files) needle
-                 case matches of Nothing -> return ()
-                                 (Just []) -> putStrLn "not found"
-                                 (Just l) -> run (head l) scriptArgs
-  where run s a = repeater $ callProcess (showLong s) a
-        repeater = if (optAutoRestart opts) then (sequence_ . repeat) else id
-        generalHelp = parsedHelp (parseOptions args::ParsedOptions KjOptions)
+  case args of
+  [] -> putStrLn $ parsedHelp (parseOptions args::ParsedOptions KjOptions)
+  (filename:scriptArgs) -> do
+    files <- getFiles
+    let needle = fromString filename
+    let matches = fmap (take 1 . mapCompareExpand files) needle
+    case matches of
+      Nothing -> return ()
+      (Just []) -> putStrLn "not found"
+      (Just l) -> repeatProcess (optAutoRestart opts) (showLong . head $ l) scriptArgs
+
+repeatProcess :: Bool -> FilePath -> [String] -> IO ()
+repeatProcess bool cmd args = do
+  process <- spawnProcess cmd args
+  code <- waitForProcess process
+  case (bool, code) of
+    (False, _) -> return ()
+    (True, ExitSuccess) -> return ()
+    (True, ExitFailure i) -> do
+      printf "KJ WARNING: program exited with status code %d ... RESTARTING\n" i
+      repeatProcess bool cmd args
