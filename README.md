@@ -89,6 +89,13 @@ cp completions/kj.sh ~/.bash_completion.d/kj
 cp completions/kj.fish ~/.config/fish/completions/kj.fish
 ```
 
+#### zsh
+
+```shell
+source completions/kj.plugin.zsh
+```
+Or use your favorite [plugin manager](https://wiki.archlinux.org/index.php/Zsh#Configuration_Frameworks).
+
 ## misc
 
 ### name
