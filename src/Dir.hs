@@ -107,9 +107,8 @@ getAllPossibleKjDirs path = map getKjDir dirs
   where dirs = getAllParents path
 
 -- see if the folder has a .kj.json
--- try to parse.kj.json and get a scripty dir from it
--- if it fails for any reason, print that it's unreadable
--- and say we're defaulting to "scripts"
+-- try to parse kj.json and get a kj dir from it
+-- if it fails for any reason, , default to "scripts"
 -- return the full path to the kj dir or "scripts"
 getKjDir :: FilePath -> IO FilePath
 getKjDir path = do
@@ -131,6 +130,9 @@ getKjDir path = do
 processDirContents :: [FilePath] -> [ScriptFileData]
 processDirContents = mapMaybe fromString
 
+-- split up a file path into its components and
+-- rejoin its components in every combination that
+-- produces a valid parent path.
 getAllParents :: FilePath -> [FilePath]
 getAllParents path = reverse $ map ($ chunks) takers
   where takeAndConcat n = joinPath . take n
