@@ -9,65 +9,67 @@ import Text.Printf
 
 import Dir
 import Parse
+import System.Exit
 
-data KjOptions = KjOptions { optListOnly :: Bool, optDetailOnly :: Bool }
+data KjOptions = KjOptions { optListOnly :: Bool,
+                             optDetailOnly :: Bool,
+                             optAutoRestart :: Bool }
+
+type RunMode = KjOptions -> [String] -> IO ()
 
 instance Options KjOptions where
     defineOptions =
       pure KjOptions
-      <*> mkViewOpt "list" "in machine readable format"
-      <*> mkViewOpt "detail" "with docstring if available"
+      <*> mkViewOpt "list" (printf t "in machine readable format")
+      <*> mkViewOpt "detail" (printf t "with docstring if available")
+      <*> mkViewOpt "auto-restart" "automatically restart script when it terminates"
       where mkViewOpt long desc =
               defineOption optionType_bool
               (\o -> o { optionLongFlags = [long],
                          optionShortFlags = [head long],
-                         optionDescription = printf t desc,
+                         optionDescription = desc,
                          optionDefault = False })
             t = "Print all available scripts (%s)"
 
-firstArgIsScript :: [String] -> Bool
-firstArgIsScript args =
-  case args of [] -> False
-               x:_ -> head x /= '-'
-
--- parse arguments, determine runmode, call runmode
 main :: IO ()
-main = do
-  argv <- getArgs
-  if firstArgIsScript argv
-    then scriptMode argv
-    else runCommand $ \opts args -> do
-    let detailOnly = optDetailOnly opts
-        listOnly = optListOnly opts
-        hasScriptArgs = not (null args)
-        modes = filter (==True) [detailOnly, listOnly, hasScriptArgs]
-        hasConflictingParams = 1 /= length modes
-    if hasConflictingParams
-      then putStrLn (parsedHelp (parseOptions argv::ParsedOptions KjOptions))
-      else if detailOnly
-           then detailOnlyMode
-           else listOnlyMode
+main = runCommand $ \opts args ->
+  let mode = if (optDetailOnly opts)
+             then detailOnlyMode
+             else if (optListOnly opts)
+                  then listOnlyMode
+                  else scriptMode
+  in mode opts args
 
--- prints all available scripts
-listOnlyMode :: IO ()
-listOnlyMode = getFiles >>= mapM_ (putStrLn . showShort)
+listOnlyMode :: RunMode
+listOnlyMode _ _ = getFiles >>= mapM_ (putStrLn . showShort)
 
--- prints all available scripts with their summaries
-detailOnlyMode :: IO ()
-detailOnlyMode = do
+detailOnlyMode :: RunMode
+detailOnlyMode _ _ = do
   files <- getFiles
   texts <- mapM (readFile . showLong) files
   let parsed = zipWith parseScript (map fileName files) texts
   mapM_ print (catMaybes parsed)
 
--- the main runmode, executes a script
-scriptMode :: [String] -> IO ()
-scriptMode outerArgs = do
-  let (filename:args) = outerArgs
-  files <- getFiles
-  let needle = fromString filename
-  let matches = fmap (take 1 . mapCompareExpand files) needle
-  case matches of Nothing -> return ()
-                  (Just []) -> putStrLn "not found"
-                  (Just l) -> mapM_ (\sr -> callProcess (showLong sr) args) l
-  
+scriptMode :: RunMode
+scriptMode opts args =
+  case args of
+  [] -> putStrLn $ parsedHelp (parseOptions args::ParsedOptions KjOptions)
+  (filename:scriptArgs) -> do
+    files <- getFiles
+    let needle = fromString filename
+    let matches = fmap (take 1 . mapCompareExpand files) needle
+    case matches of
+      Nothing -> return ()
+      (Just []) -> putStrLn "not found"
+      (Just l) -> repeatProcess (optAutoRestart opts) (showLong . head $ l) scriptArgs
+
+repeatProcess :: Bool -> FilePath -> [String] -> IO ()
+repeatProcess bool cmd args = do
+  process <- spawnProcess cmd args
+  code <- waitForProcess process
+  case (bool, code) of
+    (False, _) -> return ()
+    (True, ExitSuccess) -> return ()
+    (True, ExitFailure i) -> do
+      printf "KJ WARNING: program exited with status code %d ... RESTARTING\n" i
+      repeatProcess bool cmd args
