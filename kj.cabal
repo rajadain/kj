@@ -18,9 +18,9 @@ executable kj
   default-language:    Haskell2010
   build-depends:       base
                      , options==1.2.1.1
-                     , process==1.4.2.0
-                     , directory==1.2.5.0
-                     , aeson==0.9.0.1
+                     , process==1.2.3.0
+                     , directory==1.2.2.0
+                     , aeson==0.11.2.0
                      , filepath==1.4.0.0
                      , bytestring==0.10.6.0
-                     , parsec==3.1.9
+                     , parsec==3.1.11

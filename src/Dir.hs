@@ -84,6 +84,12 @@ getFiles = do
 -- directory IO
 ------------------------------------------------------------
 
+-- COPIED FROM DIRECTORY 1.2.5.0
+listDirectory :: FilePath -> IO [FilePath]
+listDirectory path =
+  (filter f) <$> (getDirectoryContents path)
+  where f filename = filename /= "." && filename /= ".."
+
 listAndJoin :: FilePath -> IO [FilePath]
 listAndJoin path = do
   contents <- listDirectory path
