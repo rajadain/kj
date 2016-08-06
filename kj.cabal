@@ -11,7 +11,7 @@ executable kj
   if os(darwin)
      ghc-options:      -O2 -threaded -rtsopts -with-rtsopts=-N
   else
-     ghc-options:      -static -O2 -optl-static -optl-pthread -threaded -rtsopts -with-rtsopts=-N
+     ghc-options:      -O2 -threaded -rtsopts -with-rtsopts=-N -optl-pthread -static -optl-static
   main-is:             Main.hs
   other-modules:       Parse
                      , Dir
