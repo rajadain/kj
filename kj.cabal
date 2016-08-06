@@ -8,10 +8,10 @@ cabal-version:       >=1.10
 
 executable kj
   hs-source-dirs:      src
-  if os(darwin)
-     ghc-options:      -O2 -threaded -rtsopts -with-rtsopts=-N
-  else
-     ghc-options:      -O2 -threaded -rtsopts -with-rtsopts=-N -optl-pthread -static -optl-static
+  ghc-options:      -O2 -threaded -rtsopts -with-rtsopts=-N
+  -- TODO: move the following to a makefile instead
+  -- enable the following in order to produce a static binary for linux
+  -- ghc-options:      -O2 -threaded -rtsopts -with-rtsopts=-N -optl-pthread -static -optl-static
   main-is:             Main.hs
   other-modules:       Parse
                      , Dir
