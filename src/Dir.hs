@@ -75,10 +75,7 @@ fromString s = case chunks of (f, "") -> Just $ ScriptFileData f dir Nothing
 ------------------------------------------------------------
 
 getFiles :: IO [ScriptFileData]
-getFiles = do
-  current <- getCurrentDirectory
-  let kjDirs = getAllPossibleKjDirs current
-  getAllFiles =<< sequence kjDirs
+getFiles = getCurrentDirectory >>= getAllPossibleKjDirs >>= getAllFiles
 
 ------------------------------------------------------------
 -- directory IO
@@ -89,11 +86,10 @@ listDirectory :: FilePath -> IO [FilePath]
 listDirectory path =
   (filter f) <$> (getDirectoryContents path)
   where f filename = filename /= "." && filename /= ".."
+-- END COPIED FROM DIRECTORY 1.2.5.0
 
 listAndJoin :: FilePath -> IO [FilePath]
-listAndJoin path = do
-  contents <- listDirectory path
-  return $ map (\f -> joinPath [path, f]) contents
+listAndJoin path = fmap (map (\f -> joinPath [path, f])) (listDirectory path)
 
 getAllFiles :: [FilePath] -> IO [ScriptFileData]
 getAllFiles kjDirs = fmap concat $ mapM getAllFiles' kjDirs
@@ -106,10 +102,10 @@ getAllFiles kjDirs = fmap concat $ mapM getAllFiles' kjDirs
             filesOnly <- filterM doesFileExist fullPaths
             dirsOnly <- filterM doesDirectoryExist fullPaths
             nestedFiles <- concat `fmap` mapM getAllFiles' dirsOnly
-            return $ processDirContents filesOnly ++ nestedFiles
+            return $ (mapMaybe fromString) filesOnly ++ nestedFiles
 
-getAllPossibleKjDirs :: FilePath -> [IO FilePath]
-getAllPossibleKjDirs path = map getKjDir dirs
+getAllPossibleKjDirs :: FilePath -> IO [FilePath]
+getAllPossibleKjDirs path = mapM getKjDir dirs
   where dirs = getAllParents path
 
 -- see if the folder has a .kj.json
@@ -132,9 +128,6 @@ getKjDir path = do
 ------------------------------------------------------------
 -- directory content transformations
 ------------------------------------------------------------
-
-processDirContents :: [FilePath] -> [ScriptFileData]
-processDirContents = mapMaybe fromString
 
 -- split up a file path into its components and
 -- rejoin its components in every combination that
