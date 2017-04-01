@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, DeriveGeneric #-}
 
 module Dir (mapCompareExpand,
             ScriptFileData,
@@ -7,6 +7,8 @@ module Dir (mapCompareExpand,
             fromString,
             getFiles,
             fileName) where
+
+import GHC.Generics
 
 import Data.Aeson
 import qualified Data.ByteString.Lazy.Char8 as BL
@@ -26,12 +28,12 @@ import Data.Maybe
 --    the more complete.
 data ScriptFileData = ScriptFileData { fileName :: String,
                                        pathTo :: Maybe FilePath,
-                                       extension :: Maybe String } deriving Show
+                                       extension :: Maybe String }
+                    deriving (Show, Generic)
 
-data KjConfig = KjConfig { kjDir :: String }
+data KjConfig = KjConfig { kjConfig_kjDir :: String } deriving (Generic)
 
-instance FromJSON KjConfig where
-  parseJSON (Object o) = KjConfig <$> (o .: "kjDir")
+instance FromJSON KjConfig
 
 instance Eq ScriptFileData where
   sr1 == sr2 = isJust $ compareExpand sr1 sr2
@@ -107,16 +109,15 @@ getAllPossibleKjDirs path = mapM getKjDir dirs
 -- return the full path to the kj dir or "scripts"
 getKjDir :: FilePath -> IO FilePath
 getKjDir path = do
-  let join = \j -> joinPath [path, j]
-  let defaultPath = join "scripts"
-  let configPath = join ".kj.json"
+  let defaultPath = path </> "scripts"
+  let configPath = path </> ".kj.json"
   hasConfig <- doesFileExist $ configPath
   if not hasConfig
     then return defaultPath
     else do
     parsed <- fmap (decode . BL.pack) $ readFile configPath
     return $ case parsed of Nothing -> defaultPath
-                            (Just v) -> join (kjDir v)
+                            (Just v) -> path </> (kjConfig_kjDir v)
 
 ------------------------------------------------------------
 -- directory content transformations

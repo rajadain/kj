@@ -1,10 +1,8 @@
 module Main where
 
-import System.Directory
 import Options
 import Data.Maybe
 import System.Process hiding (runCommand)
-import System.Environment (getArgs)
 import Text.Printf
 
 import Dir

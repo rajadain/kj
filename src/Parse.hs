@@ -18,11 +18,13 @@ parseScript fname script =
 -- types
 ------------------------------------------------------------
 
-data ScriptData = ScriptData { name :: String, comment :: String,
-                               args :: [String] }
+data ScriptData = ScriptData { _scriptData_name :: String
+                             , _scriptData_comment :: String
+                             , _scriptData_args :: [String] -- TODO: currently unimplemented
+                             }
 
 instance Show ScriptData where
-  show sd = printf "%-25s %s" (name sd) (comment sd)
+  show sd = printf "%-25s %s" (_scriptData_name sd) (_scriptData_comment sd)
 
 data ParseLine = Useless | Args [String] | Comment String
 
@@ -81,12 +83,24 @@ commentLine = do
   return $ Comment (x:xs)
 
 -- line parsers that return discardable results
+emptyLine :: Parser ParseLine
 emptyLine = endOfLine >> return Useless
+
+whitespaceLine :: Parser ParseLine
 whitespaceLine = trailingSpaceEol >> return Useless
+
+sheBangLine :: Parser ParseLine
 sheBangLine = string "#!" >> nonEolChars >> endOfLine >> return Useless
+
+sourceLine :: Parser ParseLine
 sourceLine = noneOf "#" >> nonEolChars >> endOfLine >> return Useless
 
 -- mid-line parsers
+trailingSpaceEol :: Parser Char
 trailingSpaceEol = nonEolSpaces >> endOfLine
+
+nonEolSpaces :: Parser String
 nonEolSpaces = many (oneOf " \t\f\v\xa0")
+
+nonEolChars :: Parser String
 nonEolChars = many (noneOf "\n\r")
