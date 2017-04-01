@@ -10,12 +10,15 @@ module Dir (mapCompareExpand,
 
 import GHC.Generics
 
+import Control.Monad
+
 import Data.Aeson
 import qualified Data.ByteString.Lazy.Char8 as BL
+import Data.List
+import Data.Maybe
+
 import System.FilePath
 import System.Directory
-import Control.Monad
-import Data.Maybe
 
 ------------------------------------------------------------
 -- types
@@ -84,19 +87,19 @@ getFiles = getCurrentDirectory >>= getAllPossibleKjDirs >>= getAllFiles
 ------------------------------------------------------------
 
 listAndJoin :: FilePath -> IO [FilePath]
-listAndJoin path = fmap (map (\f -> joinPath [path, f])) (listDirectory path)
+listAndJoin path = fmap (path </>) <$> listDirectory path
 
 getAllFiles :: [FilePath] -> IO [ScriptFileData]
-getAllFiles kjDirs = fmap concat $ mapM getAllFiles' kjDirs
+getAllFiles kjDirs = concat <$> mapM getAllFiles' kjDirs
   where getAllFiles' kjDir = do
           exists <- doesDirectoryExist kjDir
           if not exists
             then return []
             else do
             fullPaths <- listAndJoin kjDir
-            filesOnly <- filterM doesFileExist fullPaths
-            dirsOnly <- filterM doesDirectoryExist fullPaths
-            nestedFiles <- concat `fmap` mapM getAllFiles' dirsOnly
+            filesOnly <- sort <$> filterM doesFileExist fullPaths
+            dirsOnly <- sort <$> filterM doesDirectoryExist fullPaths
+            nestedFiles <- concat <$> mapM getAllFiles' dirsOnly
             return $ (mapMaybe fromString) filesOnly ++ nestedFiles
 
 getAllPossibleKjDirs :: FilePath -> IO [FilePath]
