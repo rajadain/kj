@@ -9,17 +9,19 @@ import Dir
 import Parse
 import System.Exit
 
-data KjOptions = KjOptions { optListOnly :: Bool,
-                             optDetailOnly :: Bool,
-                             optAutoRestart :: Bool }
+data KjOptions = KjOptions { optListOnly :: Bool
+                           , optDetailOnly :: Bool
+                           , optCatFile :: Bool
+                           , optAutoRestart :: Bool }
 
 type RunMode = KjOptions -> [String] -> IO ()
 
 instance Options KjOptions where
     defineOptions =
       pure KjOptions
-      <*> mkViewOpt "list" (printf t "in machine readable format")
-      <*> mkViewOpt "detail" (printf t "with docstring if available")
+      <*> mkViewOpt "list" "Print all available scripts (in machine readable format)"
+      <*> mkViewOpt "detail" "Print all available scripts (with docstring if available)"
+      <*> mkViewOpt "cat" "display contents of script"
       <*> mkViewOpt "auto-restart" "automatically restart script when it terminates"
       where mkViewOpt long desc =
               defineOption optionType_bool
@@ -27,7 +29,6 @@ instance Options KjOptions where
                          optionShortFlags = [head long],
                          optionDescription = desc,
                          optionDefault = False })
-            t = "Print all available scripts (%s)"
 
 main :: IO ()
 main = runCommand $ \opts args ->
@@ -35,7 +36,9 @@ main = runCommand $ \opts args ->
              then detailOnlyMode
              else if (optListOnly opts)
                   then listOnlyMode
-                  else scriptMode
+                  else if (optCatFile opts)
+                       then catFileMode
+                       else scriptMode
   in mode opts args
 
 listOnlyMode :: RunMode
@@ -48,8 +51,9 @@ detailOnlyMode _ _ = do
   let parsed = zipWith parseScript (map fileName files) texts
   mapM_ print (catMaybes parsed)
 
-scriptMode :: RunMode
-scriptMode opts args =
+
+withFileMode :: (String -> [String] -> IO ()) -> RunMode
+withFileMode f _ args =
   case args of
   [] -> putStrLn $ parsedHelp (parseOptions args::ParsedOptions KjOptions)
   (filename:scriptArgs) -> do
@@ -59,7 +63,14 @@ scriptMode opts args =
     case matches of
       Nothing -> return ()
       (Just []) -> putStrLn "not found"
-      (Just l) -> repeatProcess (optAutoRestart opts) (showLong . head $ l) scriptArgs
+      (Just l) -> f (showLong . head $ l) scriptArgs
+
+catFileMode :: RunMode
+catFileMode opts args = withFileMode f opts args
+  where f p _ = putStr =<< readFile p
+
+scriptMode :: RunMode
+scriptMode opts = withFileMode (\f args' -> repeatProcess (optAutoRestart opts) f args') opts
 
 repeatProcess :: Bool -> FilePath -> [String] -> IO ()
 repeatProcess bool cmd args = do
