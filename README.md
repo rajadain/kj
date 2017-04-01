@@ -100,7 +100,7 @@ Or use your favorite [plugin manager](https://wiki.archlinux.org/index.php/Zsh#C
 
 ### name
 
-Kj is chosen to be short and simple to type from the home row. It is also a nod to the [http://en.wikipedia.org/wiki/Karaoke#Karaoke_terms](karaoke jockey).
+Kj is chosen to be short and simple to type from the home row. It is also a nod to the [karaoke jockey](http://en.wikipedia.org/wiki/Karaoke#Karaoke_terms).
 
 Kj used to be called `scripty`. This name led to too much difficulty with completion, and users were aliasing scripty to something like `s` as a workaround. Kj removes this burden.
 
