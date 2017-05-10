@@ -86,8 +86,13 @@ getFiles = getCurrentDirectory >>= getAllPossibleKjDirs >>= getAllFiles
 -- directory IO
 ------------------------------------------------------------
 
+listDirectory' :: FilePath -> IO [FilePath]
+listDirectory' path =
+  (filter f) <$> (getDirectoryContents path)
+  where f filename = filename /= "." && filename /= ".."
+
 listAndJoin :: FilePath -> IO [FilePath]
-listAndJoin path = fmap (path </>) <$> listDirectory path
+listAndJoin path = fmap (path </>) <$> listDirectory' path
 
 getAllFiles :: [FilePath] -> IO [ScriptFileData]
 getAllFiles kjDirs = concat <$> mapM getAllFiles' kjDirs
