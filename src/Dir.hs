@@ -34,7 +34,7 @@ data ScriptFileData = ScriptFileData { fileName :: String,
                                        extension :: Maybe String }
                     deriving (Show, Generic)
 
-data KjConfig = KjConfig { kjConfig_kjDir :: String } deriving (Generic)
+data KjConfig = KjConfig { kjDir :: String } deriving (Generic)
 
 instance FromJSON KjConfig
 
