@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings, DeriveGeneric, FlexibleContexts #-}
 
 module Dir (mapCompareExpand,
             ScriptFileData,
@@ -11,14 +11,19 @@ module Dir (mapCompareExpand,
 import GHC.Generics
 
 import Control.Monad
+import Control.Monad.Trans
+import Control.Monad.Reader.Class
 
 import Data.Aeson
 import qualified Data.ByteString.Lazy.Char8 as BL
 import Data.List
+import Data.Monoid
 import Data.Maybe
 
 import System.FilePath
 import System.Directory
+
+import Types
 
 ------------------------------------------------------------
 -- types
@@ -34,7 +39,7 @@ data ScriptFileData = ScriptFileData { fileName :: String,
                                        extension :: Maybe String }
                     deriving (Show, Generic)
 
-data KjConfig = KjConfig { kjConfig_kjDir :: String } deriving (Generic)
+data KjConfig = KjConfig { kjDir :: String } deriving (Generic)
 
 instance FromJSON KjConfig
 
@@ -79,8 +84,15 @@ fromString s = case chunks of (f, "") -> Just $ ScriptFileData f dir Nothing
 -- public api
 ------------------------------------------------------------
 
-getFiles :: IO [ScriptFileData]
-getFiles = getCurrentDirectory >>= getAllPossibleKjDirs >>= getAllFiles
+verbosePrint :: (MonadIO m, MonadReader App m) => String -> m ()
+verbosePrint msg = do
+  app <- ask
+  case _app_verbose app of
+    False -> return ()
+    True -> liftIO $ putStrLn msg
+
+getFiles :: (MonadIO m, MonadReader App m) => m [ScriptFileData]
+getFiles = liftIO getCurrentDirectory >>= getAllPossibleKjDirs >>= getAllFiles
 
 ------------------------------------------------------------
 -- directory IO
@@ -92,22 +104,22 @@ listDirectory' path =
   where f filename = filename /= "." && filename /= ".."
 
 listAndJoin :: FilePath -> IO [FilePath]
-listAndJoin path = fmap (path </>) <$> listDirectory' path
+listAndJoin path = fmap (path </>) <$> (liftIO $ listDirectory' path)
 
-getAllFiles :: [FilePath] -> IO [ScriptFileData]
+getAllFiles :: (MonadIO m, MonadReader App m) => [FilePath] -> m [ScriptFileData]
 getAllFiles kjDirs = concat <$> mapM getAllFiles' kjDirs
   where getAllFiles' kjDir = do
-          exists <- doesDirectoryExist kjDir
+          exists <- liftIO $ doesDirectoryExist kjDir
           if not exists
             then return []
             else do
-            fullPaths <- listAndJoin kjDir
-            filesOnly <- sort <$> filterM doesFileExist fullPaths
-            dirsOnly <- sort <$> filterM doesDirectoryExist fullPaths
+            fullPaths <- liftIO $ listAndJoin kjDir
+            filesOnly <- liftIO $ sort <$> filterM (doesFileExist) fullPaths
+            dirsOnly <- liftIO $ sort <$> filterM (doesDirectoryExist) fullPaths
             nestedFiles <- concat <$> mapM getAllFiles' dirsOnly
             return $ (mapMaybe fromString) filesOnly ++ nestedFiles
 
-getAllPossibleKjDirs :: FilePath -> IO [FilePath]
+getAllPossibleKjDirs :: (MonadIO m, MonadReader App m) => FilePath -> m [FilePath]
 getAllPossibleKjDirs path = mapM getKjDir dirs
   where dirs = getAllParents path
 
@@ -115,17 +127,25 @@ getAllPossibleKjDirs path = mapM getKjDir dirs
 -- try to parse kj.json and get a kj dir from it
 -- if it fails for any reason, , default to "scripts"
 -- return the full path to the kj dir or "scripts"
-getKjDir :: FilePath -> IO FilePath
+getKjDir :: (MonadIO m, MonadReader App m) => FilePath -> m FilePath
 getKjDir path = do
   let defaultPath = path </> "scripts"
   let configPath = path </> ".kj.json"
-  hasConfig <- doesFileExist $ configPath
+  hasConfig <- liftIO $ doesFileExist $ configPath
   if not hasConfig
-    then return defaultPath
+    then do
+      verbosePrint $
+        "didn't find '" <> configPath <> "', falling back on '" <> defaultPath <> "'"
+      return defaultPath
     else do
-    parsed <- fmap (decode . BL.pack) $ readFile configPath
-    return $ case parsed of Nothing -> defaultPath
-                            (Just v) -> path </> (kjConfig_kjDir v)
+      verbosePrint $ "found " <> configPath
+      parsed <- fmap (decode . BL.pack) $ liftIO $ readFile configPath
+      case parsed of
+        Nothing -> do
+          verbosePrint $
+            "couldn't parse JSON '" <> configPath <> "', falling back on '" <> defaultPath <> "'"
+          return defaultPath
+        (Just v) -> return $ path </> (kjDir v)
 
 ------------------------------------------------------------
 -- directory content transformations

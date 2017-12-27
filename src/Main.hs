@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module Main where
 
 import Options
@@ -7,14 +8,12 @@ import Text.Printf
 
 import Dir
 import Parse
+import Types
 import System.Exit
 
-data KjOptions = KjOptions { optListOnly :: Bool
-                           , optDetailOnly :: Bool
-                           , optCatFile :: Bool
-                           , optAutoRestart :: Bool }
+import Control.Monad.Trans
+import Control.Monad.Reader
 
-type RunMode = KjOptions -> [String] -> IO ()
 
 instance Options KjOptions where
     defineOptions =
@@ -23,6 +22,7 @@ instance Options KjOptions where
       <*> mkViewOpt "detail" "Print all available scripts (with docstring if available)"
       <*> mkViewOpt "cat" "display contents of script"
       <*> mkViewOpt "auto-restart" "automatically restart script when it terminates"
+      <*> mkViewOpt "verbose" "run in verbose mode"
       where mkViewOpt long desc =
               defineOption optionType_bool
               (\o -> o { optionLongFlags = [long],
@@ -31,33 +31,45 @@ instance Options KjOptions where
                          optionDefault = False })
 
 main :: IO ()
-main = runCommand $ \opts args ->
-  let mode = if (optDetailOnly opts)
-             then detailOnlyMode
-             else if (optListOnly opts)
-                  then listOnlyMode
-                  else if (optCatFile opts)
-                       then catFileMode
-                       else scriptMode
-  in mode opts args
+main = do
+  app <- runCommand $ \opts args -> do
+    let runMode = if (optDetailOnly opts)
+               then RunMode_Detail
+               else if (optListOnly opts)
+                    then RunMode_List
+                    else if (optCatFile opts)
+                         then RunMode_Cat
+                         else RunMode_Execute
+    return App { _app_runMode = runMode
+               , _app_verbose = optVerbose opts
+               , _app_autoRestart = optAutoRestart opts
+               , _app_args = args
+               }
 
-listOnlyMode :: RunMode
-listOnlyMode _ _ = getFiles >>= mapM_ (putStrLn . showShort)
+  case _app_runMode app of
+    RunMode_List -> listOnlyMode app
+    RunMode_Detail -> detailOnlyMode app
+    RunMode_Cat -> catFileMode app
+    RunMode_Execute -> scriptMode app
 
-detailOnlyMode :: RunMode
-detailOnlyMode _ _ = do
+listOnlyMode :: App -> IO ()
+listOnlyMode app = do
+  f <- runReaderT getFiles app
+  mapM_ (putStrLn . showShort) f
+
+detailOnlyMode :: App -> IO ()
+detailOnlyMode app = (flip runReaderT) app $ do
   files <- getFiles
-  texts <- mapM (readFile . showLong) files
+  texts <- liftIO $ mapM (readFile . showLong) files
   let parsed = zipWith parseScript (map fileName files) texts
-  mapM_ print (catMaybes parsed)
+  liftIO $ mapM_ print (catMaybes parsed)
 
-
-withFileMode :: (String -> [String] -> IO ()) -> RunMode
-withFileMode f _ args =
+withFileMode :: (String -> [String] -> IO ()) -> App -> IO ()
+withFileMode f app@(App _ _ _ args) =
   case args of
   [] -> putStrLn $ parsedHelp (parseOptions args::ParsedOptions KjOptions)
   (filename:scriptArgs) -> do
-    files <- getFiles
+    files <- runReaderT getFiles app
     let needle = fromString filename
     let matches = fmap (take 1 . mapCompareExpand files) needle
     case matches of
@@ -65,12 +77,12 @@ withFileMode f _ args =
       (Just []) -> putStrLn "not found"
       (Just l) -> f (showLong . head $ l) scriptArgs
 
-catFileMode :: RunMode
-catFileMode opts args = withFileMode f opts args
+catFileMode :: App -> IO ()
+catFileMode app = withFileMode f app
   where f p _ = putStr =<< readFile p
 
-scriptMode :: RunMode
-scriptMode opts = withFileMode (\f args' -> repeatProcess (optAutoRestart opts) f args') opts
+scriptMode :: App -> IO ()
+scriptMode app = withFileMode (\f args' -> repeatProcess (_app_autoRestart app) f args') app
 
 repeatProcess :: Bool -> FilePath -> [String] -> IO ()
 repeatProcess bool cmd args = do
