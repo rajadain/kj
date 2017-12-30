@@ -107,16 +107,16 @@ listAndJoin :: FilePath -> IO [FilePath]
 listAndJoin path = fmap (path </>) <$> (liftIO $ listDirectory' path)
 
 getAllFiles :: (MonadIO m, MonadReader App m) => [FilePath] -> m [ScriptFileData]
-getAllFiles kjDirs = concat <$> mapM getAllFiles' kjDirs
-  where getAllFiles' kjDir = do
-          exists <- liftIO $ doesDirectoryExist kjDir
+getAllFiles kjDirs = concat <$> mapM getAllFilesPerDirectory kjDirs
+  where getAllFilesPerDirectory dir = do
+          exists <- liftIO $ doesDirectoryExist dir
           if not exists
             then return []
             else do
-            fullPaths <- liftIO $ listAndJoin kjDir
+            fullPaths <- liftIO $ listAndJoin dir
             filesOnly <- liftIO $ sort <$> filterM (doesFileExist) fullPaths
             dirsOnly <- liftIO $ sort <$> filterM (doesDirectoryExist) fullPaths
-            nestedFiles <- concat <$> mapM getAllFiles' dirsOnly
+            nestedFiles <- concat <$> mapM getAllFilesPerDirectory dirsOnly
             return $ (mapMaybe fromString) filesOnly ++ nestedFiles
 
 getAllPossibleKjDirs :: (MonadIO m, MonadReader App m) => FilePath -> m [FilePath]
