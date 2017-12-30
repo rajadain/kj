@@ -33,13 +33,12 @@ instance Options KjOptions where
 main :: IO ()
 main = do
   app <- runCommand $ \opts args -> do
-    let runMode = if (optDetailOnly opts)
-               then RunMode_Detail
-               else if (optListOnly opts)
-                    then RunMode_List
-                    else if (optCatFile opts)
-                         then RunMode_Cat
-                         else RunMode_Execute
+    let runMode
+          | optDetailOnly opts = RunMode_Detail
+          | optListOnly opts = RunMode_List
+          | optCatFile opts = RunMode_Cat
+          | otherwise = RunMode_Execute
+
     return App { _app_runMode = runMode
                , _app_verbose = optVerbose opts
                , _app_autoRestart = optAutoRestart opts
