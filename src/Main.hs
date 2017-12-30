@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Main where
 
@@ -30,43 +31,48 @@ main = do
                , _app_args = args
                }
 
-  case _app_runMode app of
-    RunMode_List -> listOnlyMode app
-    RunMode_Detail -> detailOnlyMode app
-    RunMode_Cat -> catFileMode app
-    RunMode_Execute -> scriptMode app
+  let appRunMode = case _app_runMode app of
+          RunMode_List -> listOnlyMode
+          RunMode_Detail -> detailOnlyMode
+          RunMode_Cat -> catFileMode
+          RunMode_Execute -> scriptMode
 
-listOnlyMode :: App -> IO ()
-listOnlyMode app = do
-  f <- runReaderT getFiles app
-  mapM_ (putStrLn . showShort) f
+  runReaderT appRunMode app
 
-detailOnlyMode :: App -> IO ()
-detailOnlyMode app = (flip runReaderT) app $ do
+listOnlyMode :: (MonadReader App m, MonadIO m) => m ()
+listOnlyMode = do
+  f <- getFiles
+  mapM_ (liftIO . putStrLn . showShort) f
+
+detailOnlyMode :: (MonadReader App m, MonadIO m) => m ()
+detailOnlyMode = do
   files <- getFiles
   texts <- liftIO $ mapM (readFile . showLong) files
   let parsed = zipWith parseScript (map fileName files) texts
   liftIO $ mapM_ print (catMaybes parsed)
 
-withFileMode :: (String -> [String] -> IO ()) -> App -> IO ()
-withFileMode f app@(App _ _ _ args) =
+withFileMode :: (MonadReader App m, MonadIO m) => (String -> [String] -> IO ()) -> m ()
+withFileMode f = do
+  (App _ _ _ args) <- ask
   case args of
-  [] -> putStrLn $ parsedHelp (parseOptions args::ParsedOptions KjOptions)
-  (filename:scriptArgs) -> do
-    files <- runReaderT getFiles app
-    let needle = fromString filename
-    let matches = fmap (take 1 . mapCompareExpand files) needle
-    case matches of
-      Nothing -> return ()
-      (Just []) -> putStrLn "not found"
-      (Just l) -> f (showLong . head $ l) scriptArgs
+    [] -> liftIO $ putStrLn $ parsedHelp (parseOptions args::ParsedOptions KjOptions)
+    (filename:scriptArgs) -> do
+      files <- getFiles
+      let needle = fromString filename
+      let matches = fmap (take 1 . mapCompareExpand files) needle
+      case matches of
+        Nothing -> return ()
+        (Just []) -> liftIO $ putStrLn "not found"
+        (Just l) -> liftIO $ f (showLong . head $ l) scriptArgs
 
-catFileMode :: App -> IO ()
-catFileMode app = withFileMode f app
+catFileMode :: (MonadReader App m, MonadIO m) => m ()
+catFileMode = withFileMode f
   where f p _ = putStr =<< readFile p
 
-scriptMode :: App -> IO ()
-scriptMode app = withFileMode (\f args' -> repeatProcess (_app_autoRestart app) f args') app
+scriptMode :: (MonadReader App m, MonadIO m) => m ()
+scriptMode = do
+  (App _ autoRestart _ _) <- ask
+  withFileMode (\f args -> repeatProcess autoRestart f args)
 
 repeatProcess :: Bool -> FilePath -> [String] -> IO ()
 repeatProcess bool cmd args = do
