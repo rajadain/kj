@@ -15,21 +15,6 @@ import Control.Monad.Trans
 import Control.Monad.Reader
 
 
-instance Options KjOptions where
-    defineOptions =
-      pure KjOptions
-      <*> mkViewOpt "list" "Print all available scripts (in machine readable format)"
-      <*> mkViewOpt "detail" "Print all available scripts (with docstring if available)"
-      <*> mkViewOpt "cat" "display contents of script"
-      <*> mkViewOpt "auto-restart" "automatically restart script when it terminates"
-      <*> mkViewOpt "verbose" "run in verbose mode"
-      where mkViewOpt long desc =
-              defineOption optionType_bool
-              (\o -> o { optionLongFlags = [long],
-                         optionShortFlags = [head long],
-                         optionDescription = desc,
-                         optionDefault = False })
-
 main :: IO ()
 main = do
   app <- runCommand $ \opts args -> do
