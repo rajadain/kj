@@ -60,6 +60,10 @@ Binaries are provided on the releases page for GNU/Linux. More platforms may lat
 
 The first comment found in your script after a shebang line will be read by kj as quick documentation. Simply run `kj -d` from within a `kj` project to see scripts and their documentation.
 
+### quickview
+
+Instead of running a script (`kj foo`), you can use the `-c` flag to print that script to your console (`kj -c foo`). This is useful for taking a quick look at a script without having to refer to it's exact filepath.
+
 ### custom directories
 
 Instead of looking for a `scripts` dir, you can set `kjDir` in a `.kj.json` file at the root level where the scripts folder is, to a folder, without slashes, to look for scripts in.
@@ -68,6 +72,8 @@ Example `.kj.json`:
 ```json
 {"kjDir": "kj_scripts"}
 ```
+
+A technique that works quite well for development is to use the above `.kj.json` and globally gitignore `kj_scripts`. This technique allows you to add your own scripts to projects you work on, suitable for things that are particular to your workflow and not useful for others on your team.
 
 ### shell completions
 

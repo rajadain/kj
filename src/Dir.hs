@@ -8,8 +8,6 @@ module Dir (mapCompareExpand,
             getFiles,
             fileName) where
 
-import GHC.Generics
-
 import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Reader.Class
@@ -34,14 +32,15 @@ import Types
 -- it should be possible to :
 --    compare a less complete file to a more complete file and get
 --    the more complete.
-data ScriptFileData = ScriptFileData { fileName :: String,
-                                       pathTo :: Maybe FilePath,
-                                       extension :: Maybe String }
-                    deriving (Show, Generic)
+data ScriptFileData = ScriptFileData { fileName :: String
+                                     , pathTo :: Maybe FilePath
+                                     , extension :: Maybe String
+                                     } deriving (Show)
 
-data KjConfig = KjConfig { kjDir :: String } deriving (Generic)
+data KjConfig = KjConfig { _kjConfig_kjDir :: String }
 
-instance FromJSON KjConfig
+instance FromJSON KjConfig where
+    parseJSON = withObject "KjConfig" $ \v -> KjConfig <$> v .: "kjDir"
 
 instance Eq ScriptFileData where
   sr1 == sr2 = isJust $ compareExpand sr1 sr2
@@ -92,36 +91,32 @@ verbosePrint msg = do
     True -> liftIO $ putStrLn msg
 
 getFiles :: (MonadIO m, MonadReader App m) => m [ScriptFileData]
-getFiles = liftIO getCurrentDirectory >>= getAllPossibleKjDirs >>= getAllFiles
+getFiles = do
+  cwd <- liftIO getCurrentDirectory
+  kjDirs <- mapM getKjDir $ getAllParents cwd
+  concat <$> (liftIO $ mapM getAllFilesPerDirectory kjDirs)
 
 ------------------------------------------------------------
 -- directory IO
 ------------------------------------------------------------
 
-listDirectory' :: FilePath -> IO [FilePath]
-listDirectory' path =
-  (filter f) <$> (getDirectoryContents path)
-  where f filename = filename /= "." && filename /= ".."
+getContentsAbsolute  :: FilePath -> IO [FilePath]
+getContentsAbsolute path = do
+  allContents <- getDirectoryContents path
+  let filesAndDirs = filter (\f -> f /= "." && f /= "..") allContents
+  return $ (path </>) <$> filesAndDirs
 
-listAndJoin :: FilePath -> IO [FilePath]
-listAndJoin path = fmap (path </>) <$> (liftIO $ listDirectory' path)
-
-getAllFiles :: (MonadIO m, MonadReader App m) => [FilePath] -> m [ScriptFileData]
-getAllFiles kjDirs = concat <$> mapM getAllFilesPerDirectory kjDirs
-  where getAllFilesPerDirectory dir = do
-          exists <- liftIO $ doesDirectoryExist dir
-          if not exists
-            then return []
-            else do
-            fullPaths <- liftIO $ listAndJoin dir
-            filesOnly <- liftIO $ sort <$> filterM (doesFileExist) fullPaths
-            dirsOnly <- liftIO $ sort <$> filterM (doesDirectoryExist) fullPaths
-            nestedFiles <- concat <$> mapM getAllFilesPerDirectory dirsOnly
-            return $ (mapMaybe fromString) filesOnly ++ nestedFiles
-
-getAllPossibleKjDirs :: (MonadIO m, MonadReader App m) => FilePath -> m [FilePath]
-getAllPossibleKjDirs path = mapM getKjDir dirs
-  where dirs = getAllParents path
+getAllFilesPerDirectory :: FilePath -> IO [ScriptFileData]
+getAllFilesPerDirectory dir = do
+  exists <- doesDirectoryExist dir
+  case exists of
+    False -> return []
+    True -> do
+      fullPaths <- getContentsAbsolute dir
+      filesOnly <- sort <$> filterM doesFileExist fullPaths
+      dirsOnly <- sort <$> filterM doesDirectoryExist fullPaths
+      nestedFiles <- concat <$> mapM getAllFilesPerDirectory dirsOnly
+      return $ (mapMaybe fromString) filesOnly ++ nestedFiles
 
 -- see if the folder has a .kj.json
 -- try to parse kj.json and get a kj dir from it
@@ -145,7 +140,7 @@ getKjDir path = do
           verbosePrint $
             "couldn't parse JSON '" <> configPath <> "', falling back on '" <> defaultPath <> "'"
           return defaultPath
-        (Just v) -> return $ path </> (kjDir v)
+        (Just v) -> return $ path </> (_kjConfig_kjDir v)
 
 ------------------------------------------------------------
 -- directory content transformations
