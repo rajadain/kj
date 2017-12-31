@@ -8,8 +8,6 @@ module Dir (mapCompareExpand,
             getFiles,
             fileName) where
 
-import GHC.Generics
-
 import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Reader.Class
@@ -39,9 +37,10 @@ data ScriptFileData = ScriptFileData { fileName :: String,
                                        extension :: Maybe String }
                     deriving (Show, Generic)
 
-data KjConfig = KjConfig { kjDir :: String } deriving (Generic)
+data KjConfig = KjConfig { _kjConfig_kjDir :: String }
 
-instance FromJSON KjConfig
+instance FromJSON KjConfig where
+    parseJSON = withObject "KjConfig" $ \v -> KjConfig <$> v .: "kjDir"
 
 instance Eq ScriptFileData where
   sr1 == sr2 = isJust $ compareExpand sr1 sr2
@@ -145,7 +144,7 @@ getKjDir path = do
           verbosePrint $
             "couldn't parse JSON '" <> configPath <> "', falling back on '" <> defaultPath <> "'"
           return defaultPath
-        (Just v) -> return $ path </> (kjDir v)
+        (Just v) -> return $ path </> (_kjConfig_kjDir v)
 
 ------------------------------------------------------------
 -- directory content transformations
