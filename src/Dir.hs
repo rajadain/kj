@@ -91,36 +91,32 @@ verbosePrint msg = do
     True -> liftIO $ putStrLn msg
 
 getFiles :: (MonadIO m, MonadReader App m) => m [ScriptFileData]
-getFiles = liftIO getCurrentDirectory >>= getAllPossibleKjDirs >>= getAllFiles
+getFiles = do
+  cwd <- liftIO getCurrentDirectory
+  kjDirs <- mapM getKjDir $ getAllParents cwd
+  concat <$> (liftIO $ mapM getAllFilesPerDirectory kjDirs)
 
 ------------------------------------------------------------
 -- directory IO
 ------------------------------------------------------------
 
-listDirectory' :: FilePath -> IO [FilePath]
-listDirectory' path =
-  (filter f) <$> (getDirectoryContents path)
-  where f filename = filename /= "." && filename /= ".."
+getContentsAbsolute  :: FilePath -> IO [FilePath]
+getContentsAbsolute path = do
+  allContents <- getDirectoryContents path
+  let filesAndDirs = filter (\f -> f /= "." && f /= "..") allContents
+  return $ (path </>) <$> filesAndDirs
 
-listAndJoin :: FilePath -> IO [FilePath]
-listAndJoin path = fmap (path </>) <$> (liftIO $ listDirectory' path)
-
-getAllFiles :: (MonadIO m, MonadReader App m) => [FilePath] -> m [ScriptFileData]
-getAllFiles kjDirs = concat <$> mapM getAllFilesPerDirectory kjDirs
-  where getAllFilesPerDirectory dir = do
-          exists <- liftIO $ doesDirectoryExist dir
-          if not exists
-            then return []
-            else do
-            fullPaths <- liftIO $ listAndJoin dir
-            filesOnly <- liftIO $ sort <$> filterM (doesFileExist) fullPaths
-            dirsOnly <- liftIO $ sort <$> filterM (doesDirectoryExist) fullPaths
-            nestedFiles <- concat <$> mapM getAllFilesPerDirectory dirsOnly
-            return $ (mapMaybe fromString) filesOnly ++ nestedFiles
-
-getAllPossibleKjDirs :: (MonadIO m, MonadReader App m) => FilePath -> m [FilePath]
-getAllPossibleKjDirs path = mapM getKjDir dirs
-  where dirs = getAllParents path
+getAllFilesPerDirectory :: FilePath -> IO [ScriptFileData]
+getAllFilesPerDirectory dir = do
+  exists <- doesDirectoryExist dir
+  case exists of
+    False -> return []
+    True -> do
+      fullPaths <- getContentsAbsolute dir
+      filesOnly <- sort <$> filterM doesFileExist fullPaths
+      dirsOnly <- sort <$> filterM doesDirectoryExist fullPaths
+      nestedFiles <- concat <$> mapM getAllFilesPerDirectory dirsOnly
+      return $ (mapMaybe fromString) filesOnly ++ nestedFiles
 
 -- see if the folder has a .kj.json
 -- try to parse kj.json and get a kj dir from it
