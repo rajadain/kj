@@ -32,10 +32,10 @@ import Types
 -- it should be possible to :
 --    compare a less complete file to a more complete file and get
 --    the more complete.
-data ScriptFileData = ScriptFileData { fileName :: String,
-                                       pathTo :: Maybe FilePath,
-                                       extension :: Maybe String }
-                    deriving (Show, Generic)
+data ScriptFileData = ScriptFileData { fileName :: String
+                                     , pathTo :: Maybe FilePath
+                                     , extension :: Maybe String
+                                     } deriving (Show)
 
 data KjConfig = KjConfig { _kjConfig_kjDir :: String }
 
