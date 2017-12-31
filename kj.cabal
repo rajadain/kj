@@ -8,7 +8,7 @@ cabal-version:       >=1.10
 
 executable kj
   hs-source-dirs:      src
-  ghc-options:      -O2 -threaded -rtsopts -with-rtsopts=-N
+  ghc-options:      -O2 -threaded -rtsopts -with-rtsopts=-N -Werror -Wall
   -- TODO: move the following to a makefile instead
   -- enable the following in order to produce a static binary for linux
   -- ghc-options:      -O2 -threaded -rtsopts -with-rtsopts=-N -optl-pthread -static -optl-static
