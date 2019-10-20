@@ -15,7 +15,7 @@ import Control.Monad.Reader.Class
 import Data.Aeson
 import qualified Data.ByteString.Lazy.Char8 as BL
 import Data.List
-import Data.Monoid
+import Data.Monoid ((<>))
 import Data.Maybe
 
 import System.FilePath
