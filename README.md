@@ -37,6 +37,14 @@ qux
 
 ```
 
+Any arguments after the script name are passed through to the script untouched, including flags:
+```
+[~/project/src/subpackage]$ kj bar --staging
+# ... executes bar.sh --staging
+```
+
+kj's own flags must come before the script name (e.g. `kj -c bar`). If the first non-flag argument doesn't match a script, all arguments are treated as kj arguments.
+
 ## installation
 
 kj is easy to install using [stack](http://docs.haskellstack.org/en/stable/README/#how-to-install), which is available for all major platforms.

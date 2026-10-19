@@ -3,7 +3,9 @@
 module Main where
 
 import Options
+import Data.List (isPrefixOf)
 import Data.Maybe
+import System.Environment (getArgs, withArgs)
 import System.Process hiding (runCommand)
 import Text.Printf
 
@@ -18,18 +20,18 @@ import Control.Monad.Reader
 
 main :: IO ()
 main = do
-  app <- runCommand $ \opts args -> do
-    let runMode
-          | optDetailOnly opts = RunMode_Detail
-          | optListOnly opts = RunMode_List
-          | optCatFile opts = RunMode_Cat
-          | otherwise = RunMode_Execute
-
-    return App { _app_runMode = runMode
-               , _app_verbose = optVerbose opts
-               , _app_autoRestart = optAutoRestart opts
-               , _app_args = args
-               }
+  rawArgs <- getArgs
+  -- kj flags must precede the script name; everything after a matching
+  -- script name is passed through to the script untouched.
+  let (kjFlags, rest) = break (not . isKjFlag) rawArgs
+  leadingApp <- withArgs kjFlags $ runCommand mkApp
+  app <- case rest of
+    (name:scriptArgs) -> do
+      found <- runReaderT (resolveScript name) leadingApp { _app_verbose = False }
+      case found of
+        Just _ -> return leadingApp { _app_args = name : scriptArgs }
+        Nothing -> runCommand mkApp
+    [] -> return leadingApp
 
   let appRunMode = case _app_runMode app of
           RunMode_List -> listOnlyMode
@@ -38,6 +40,23 @@ main = do
           RunMode_Execute -> scriptMode
 
   runReaderT appRunMode app
+
+isKjFlag :: String -> Bool
+isKjFlag a = "-" `isPrefixOf` a && a /= "-" && a /= "--"
+
+mkApp :: Monad m => KjOptions -> [String] -> m App
+mkApp opts args = do
+  let runMode
+        | optDetailOnly opts = RunMode_Detail
+        | optListOnly opts = RunMode_List
+        | optCatFile opts = RunMode_Cat
+        | otherwise = RunMode_Execute
+
+  return App { _app_runMode = runMode
+             , _app_verbose = optVerbose opts
+             , _app_autoRestart = optAutoRestart opts
+             , _app_args = args
+             }
 
 listOnlyMode :: (MonadReader App m, MonadIO m) => m ()
 listOnlyMode = do
@@ -51,19 +70,26 @@ detailOnlyMode = do
   let parsed = zipWith parseScript (map fileName files) texts
   liftIO $ mapM_ print (catMaybes parsed)
 
+resolveScript :: (MonadReader App m, MonadIO m) => String -> m (Maybe FilePath)
+resolveScript filename = case fromString filename of
+  Nothing -> return Nothing
+  Just needle -> do
+    files <- getFiles
+    return $ showLong <$> listToMaybe (mapCompareExpand files needle)
+
 withFileMode :: (MonadReader App m, MonadIO m) => (String -> [String] -> IO ()) -> m ()
 withFileMode f = do
   (App _ _ _ args) <- ask
   case args of
     [] -> liftIO $ putStrLn $ parsedHelp (parseOptions args::ParsedOptions KjOptions)
     (filename:scriptArgs) -> do
-      files <- getFiles
-      let needle = fromString filename
-      let matches = fmap (take 1 . mapCompareExpand files) needle
-      case matches of
+      case fromString filename of
         Nothing -> return ()
-        (Just []) -> liftIO $ putStrLn "not found"
-        (Just l) -> liftIO $ f (showLong . head $ l) scriptArgs
+        Just _ -> do
+          found <- resolveScript filename
+          case found of
+            Nothing -> liftIO $ putStrLn "not found"
+            Just path -> liftIO $ f path scriptArgs
 
 catFileMode :: (MonadReader App m, MonadIO m) => m ()
 catFileMode = withFileMode f
